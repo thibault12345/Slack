@@ -1,1 +1,49 @@
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Chaque lundi à 8h00 UTC
+  workflow_dispatch:     # Lancement manuel possible
 
+jobs:
+  weekly-report:
+    name: Générer et envoyer le rapport
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: read
+      contents: read
+
+    steps:
+      - name: Checkout du repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Installer les dépendances
+        run: npm install @octokit/rest
+
+      - name: Générer le rapport
+        id: report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: node .github/scripts/weekly-report.js
+
+      - name: Envoyer sur Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d @slack-payload.json
+
+      - name: Upload du payload (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slack-payload
+          path: slack-payload.json
+          retention-days: 7
